@@ -338,3 +338,332 @@ try {
 
 IOC是Inversion of Control的缩写，翻译成“控制反转”。
 
+## 通过注解setContentView
+
+定义注解
+
+**ContentView.java**
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface ContentView {
+    int value();
+}
+```
+
+**InjetUtils.java**
+
+```
+public class InjetUtils {
+  
+  //注入方法 
+  public static void inject(Object context) {
+    //setContentView  的逻辑
+    injectLayout(context);
+  }
+
+  private static void injectLayout(Object context) {
+    Class< ? > aClass = context.getClass();
+    ContentView contentView = aClass.getAnnotation(ContentView.class);
+    if (contentView == null) {
+      return;
+    }
+    int layoutId = contentView.value();
+    try {
+      //通过反射拿到setContentView方法
+      Method setContentView = aClass.getMethod("setContentView", int.class);
+      //调用setContentView方法
+      setContentView.invoke(context, layoutId);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  
+}
+```
+
+**BaseActivity.java**
+
+```java
+public class BaseActivity extends AppCompatActivity {
+
+  @Override
+  protected void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    InjetUtils.inject(this);
+  }
+}
+```
+
+**调用**
+
+```java
+@ContentView(R.layout.activity_main)
+public class MainActivity extends BaseActivity {
+  
+}
+```
+
+## 通过注解findViewById
+
+定义注解
+
+**ViewInject.java**
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.FIELD)
+public @interface ViewInject {
+  int value();
+}
+```
+
+**InjetUtils.java**
+
+```java
+public class InjetUtils {
+
+  //注入方法 
+  public static void inject(Object context) {
+    //setContentView  的逻辑
+    injectLayout(context);
+    injectView(context);
+  }
+
+  private static void injectLayout(Object context) {
+    Class< ? > aClass = context.getClass();
+    ContentView contentView = aClass.getAnnotation(ContentView.class);
+    if (contentView == null) {
+      return;
+    }
+    int layoutId = contentView.value();
+    try {
+      //通过反射拿到setContentView方法
+      Method setContentView = aClass.getMethod("setContentView", int.class);
+      //调用setContentView方法
+      setContentView.invoke(context, layoutId);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  private static void injectView(Object context) {
+    Class< ? > aClass = context.getClass();
+    Field[] declaredFields = aClass.getDeclaredFields();
+    for (Field field : declaredFields) {
+      ViewInject viewInject = field.getAnnotation(ViewInject.class);
+      if (viewInject == null) {
+        continue;
+      }
+      int valueId = viewInject.value();
+      try {
+        Method findViewById = aClass.getMethod("findViewById", int.class);
+        View view = (View) findViewById.invoke(context, valueId);
+        field.setAccessible(true);
+        field.set(context, view);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+}
+```
+
+**调用**
+
+```java
+@ContentView(R.layout.activity_main)
+public class MainActivity extends BaseActivity {
+  @ViewInject(R.id.tv)
+  TextView mTextView;
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    mTextView.setText("我已经被findViewById了");
+  }
+}
+```
+
+## 通过动态代理处理点击事件
+
+定义注解的基类，因为有不同的点击事件，比如点击事件，长按事件。
+
+**EventBase.java**
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.ANNOTATION_TYPE)
+public @interface EventBase {
+  /**
+   * setOnLongClickListener
+   *
+   * @return 方法名
+   */
+  String listenerSetter();
+
+  /**
+   * OnLongClickListener.class
+   *
+   * @return 事件监听的类型
+   */
+  Class< ? > listenerType();
+
+  /**
+   * onLongClick
+   *
+   * @return 事件被触发之后，执行的回调方法的名称
+   */
+  String callbackMethod();
+
+}
+```
+
+**OnClick.java**
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+@EventBase(listenerSetter = "setOnClickListener",
+    listenerType = View.OnClickListener.class,
+    callbackMethod = "onClick")
+public @interface OnClick {
+    int[] value();
+
+}
+```
+
+**OnLongClick.java**
+
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+@EventBase(listenerSetter = "setOnLongClickListener",
+    listenerType = View.OnLongClickListener.class,
+    callbackMethod = "onLongClick")
+public @interface OnLongClick {
+    int[] value();
+
+}
+```
+
+**InjetUtils.java**
+
+```java
+public class InjetUtils {
+
+  //注入方法  
+  public static void inject(Object context) {
+    //setContentView  的逻辑
+    injectLayout(context);
+    //findViewById
+    injectView(context);
+    injectClick(context);
+  }
+
+  private static void injectLayout(Object context) {
+    Class< ? > aClass = context.getClass();
+    ContentView contentView = aClass.getAnnotation(ContentView.class);
+    if (contentView == null) {
+      return;
+    }
+    int layoutId = contentView.value();
+    try {
+      //通过反射拿到setContentView方法
+      Method setContentView = aClass.getMethod("setContentView", int.class);
+      //调用setContentView方法
+      setContentView.invoke(context, layoutId);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  private static void injectView(Object context) {
+    Class< ? > aClass = context.getClass();
+    Field[] declaredFields = aClass.getDeclaredFields();
+    for (Field field : declaredFields) {
+      ViewInject viewInject = field.getAnnotation(ViewInject.class);
+      if (viewInject == null) {
+        continue;
+      }
+      int valueId = viewInject.value();
+      try {
+        Method findViewById = aClass.getMethod("findViewById", int.class);
+        View view = (View) findViewById.invoke(context, valueId);
+        field.setAccessible(true);
+        field.set(context, view);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  private static void injectClick(Object context) {
+    Class< ? > clazz = context.getClass();
+    //获取到例如activity所有的方法对象
+    Method[] methods = clazz.getDeclaredMethods();
+    for (Method method : methods) {
+      //获取到所有的方法上面的注解
+      Annotation[] annotations = method.getAnnotations();
+      for (Annotation annotation : annotations) {
+        //获取注解的类型
+        Class< ? > annotationType = annotation.annotationType();
+        EventBase eventBase = annotationType.getAnnotation(EventBase.class);
+        if (eventBase == null) {
+          continue;
+        }
+        //拿到事件三要素
+        //setOnLongClickListener
+        String listenerSetter = eventBase.listenerSetter();
+        //OnLongClickListener.class
+        Class< ? > listenerType = eventBase.listenerType();
+        //事件被触发之后，执行的回调方法的名称 onLongClick
+        String callBackMethod = eventBase.callbackMethod();
+        try {
+          //getDeclaredMethod：方法返回一个Method对象，它反映此Class对象所表示的类或接口的指定已声明方法。
+          //获取viewId
+          Method valueMethod = annotationType.getDeclaredMethod("value");
+          int[] viewId = (int[]) valueMethod.invoke(annotation);
+          for (int id : viewId) {
+            //获取findViewById方法对象
+            Method findViewById = clazz.getMethod("findViewById", int.class);
+            //通过findViewById找到具体的view对象
+            View view = (View) findViewById.invoke(context, id);
+            ListenerInvocationHandler listenerInvocationHandler =
+                new ListenerInvocationHandler(context, method);
+            Class< ? extends View > viewClass = view.getClass();
+            //获取view的setOnLongClickListener方法对象
+            Method setListener = viewClass.getMethod(listenerSetter, listenerType);
+            Object proxy =
+                Proxy.newProxyInstance(listenerType.getClassLoader(), new Class[]{listenerType},
+                    listenerInvocationHandler);
+            setListener.invoke(view, proxy);
+            //                        view.setOnClickListener(动态代理);
+            //                        view.setOnClickListener(new View.OnClickListener() {
+            //                            @Override
+            //                            public void onClick(View v) {
+            //
+            //                            }
+            //                        });
+          }
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }
+    }
+  }
+}
+```
+
+**调用**
+
+```java
+@OnClick(value = {R.id.tv})
+public void click(View view) {
+  Log.i("TAG", "click: ");
+}
+```
+

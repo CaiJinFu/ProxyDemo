@@ -22,7 +22,7 @@ import java.lang.reflect.Proxy;
  */
 public class InjetUtils {
 
-  //注入方法  i
+  //注入方法
   public static void inject(Object context) {
     //setContentView  的逻辑
     injectLayout(context);

@@ -1,14 +1,8 @@
 package com.example.proxydemo;
 
-import android.os.Bundle;
+import com.example.proxydemo.annotion.ContentView;
 
-import androidx.appcompat.app.AppCompatActivity;
+@ContentView(R.layout.activity_main)
+public class MainActivity extends BaseActivity {
 
-public class MainActivity extends AppCompatActivity {
-
-  @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
-  }
 }

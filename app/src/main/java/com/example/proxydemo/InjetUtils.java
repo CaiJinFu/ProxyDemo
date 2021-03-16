@@ -3,10 +3,13 @@ package com.example.proxydemo;
 import android.view.View;
 
 import com.example.proxydemo.annotion.ContentView;
+import com.example.proxydemo.annotion.EventBase;
 import com.example.proxydemo.annotion.ViewInject;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 
 /**
  * @author 猿小蔡
@@ -66,6 +69,57 @@ public class InjetUtils {
   }
 
   private static void injectClick(Object context) {
-
+    Class< ? > clazz = context.getClass();
+    //获取到例如activity所有的方法对象
+    Method[] methods = clazz.getDeclaredMethods();
+    for (Method method : methods) {
+      //获取到所有的方法上面的注解
+      Annotation[] annotations = method.getAnnotations();
+      for (Annotation annotation : annotations) {
+        //获取注解的类型
+        Class< ? > annotationType = annotation.annotationType();
+        EventBase eventBase = annotationType.getAnnotation(EventBase.class);
+        if (eventBase == null) {
+          continue;
+        }
+        //拿到事件三要素
+        //setOnLongClickListener
+        String listenerSetter = eventBase.listenerSetter();
+        //OnLongClickListener.class
+        Class< ? > listenerType = eventBase.listenerType();
+        //事件被触发之后，执行的回调方法的名称 onLongClick
+        String callBackMethod = eventBase.callbackMethod();
+        try {
+          //getDeclaredMethod：方法返回一个Method对象，它反映此Class对象所表示的类或接口的指定已声明方法。
+          //获取viewId
+          Method valueMethod = annotationType.getDeclaredMethod("value");
+          int[] viewId = (int[]) valueMethod.invoke(annotation);
+          for (int id : viewId) {
+            //获取findViewById方法对象
+            Method findViewById = clazz.getMethod("findViewById", int.class);
+            //通过findViewById找到具体的view对象
+            View view = (View) findViewById.invoke(context, id);
+            ListenerInvocationHandler listenerInvocationHandler =
+                new ListenerInvocationHandler(context, method);
+            Class< ? extends View > viewClass = view.getClass();
+            //获取view的setOnLongClickListener方法对象
+            Method setListener = viewClass.getMethod(listenerSetter, listenerType);
+            Object proxy =
+                Proxy.newProxyInstance(listenerType.getClassLoader(), new Class[]{listenerType},
+                    listenerInvocationHandler);
+            setListener.invoke(view, proxy);
+            //                        view.setOnClickListener(动态代理);
+            //                        view.setOnClickListener(new View.OnClickListener() {
+            //                            @Override
+            //                            public void onClick(View v) {
+            //
+            //                            }
+            //                        });
+          }
+        } catch (Exception e) {
+          e.printStackTrace();
+        }
+      }
+    }
   }
 }
